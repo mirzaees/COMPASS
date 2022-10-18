@@ -455,6 +455,7 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
     high_band: float
         High sub-band bandwidth for split-spectrum in Hz
     '''
+
     start_time = time.time()
     error = journal.error('s1_geo_stack_processor.main')
     info = journal.info('s1_geo_stack_processor.main')
@@ -508,11 +509,10 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
     # burst IDs that are not in common
     common_ids = get_common_burst_ids(burst_map)
     burst_map = prune_dataframe(burst_map, 'burst_id', common_ids)
-
     # If user selects burst IDs to process, prune unnecessary bursts
     if burst_id is not None:
         burst_map = prune_dataframe(burst_map, 'burst_id', burst_id)
-
+        
     # Select only dates between start and end
     if start_date is not None:
         burst_map = burst_map[burst_map['date'] >= start_date]
@@ -532,6 +532,7 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
             bursts = load_bursts(safe, orbit_path, subswath)
             for burst in bursts:
                 date = int(burst.sensing_start.strftime("%Y%m%d"))
+                date_str = str(date)
                 if (burst.burst_id in list(set(burst_map['burst_id']))) and \
                         (date in list(set(burst_map['date']))):
                     runconfig_path = create_runconfig(burst, safe, orbit_path,
@@ -541,7 +542,7 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
                                                       is_split_spectrum,
                                                       low_band, high_band, pol,
                                                       x_spac, y_spac)
-                    date_str = str(date)
+
                     runfile_name = f'{run_dir}/run_{date_str}_{burst.burst_id}.sh'
                     with open(runfile_name, 'w') as rsh:
                         path = os.path.dirname(os.path.realpath(__file__))
