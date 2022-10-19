@@ -79,6 +79,8 @@ def create_parser():
     parser.add_argument('-hb', '--high-band', dest='high_band', type=float,
                         default=0.0,
                         help='High sub-band bandwidth in Hz (default: 0.0')
+    parser.add_argument('-lt', '--lookup-table', dest='lut', action='store_true',
+                        help='If True, enables look up table output (default: False)')
     return parser.parse_args()
 
 
@@ -323,7 +325,7 @@ def get_common_burst_ids(data):
 
 def create_runconfig(burst, safe, orbit_path, dem_file, work_dir,
                      burst_map, flatten, enable_rss, low_band, high_band, pol,
-                     x_spac, y_spac):
+                     x_spac, y_spac, lut):
     '''
     Create runconfig to process geocoded bursts
 
@@ -355,6 +357,8 @@ def create_runconfig(burst, safe, orbit_path, dem_file, work_dir,
         Spacing of geocoded burst along X-direction
     y_spac: float
         Spacing of geocoded burst along Y-direction
+    lut: bool
+        Whether to output the lookup table (latitude, longitude, height)
     '''
     # Load default runconfig and fill it with user-defined options
     yaml_path = f'{helpers.WORKFLOW_SCRIPTS_DIR}/defaults/s1_cslc_geo.yaml'
@@ -367,6 +371,7 @@ def create_runconfig(burst, safe, orbit_path, dem_file, work_dir,
     process = groups['processing']
     geocode = process['geocoding']
     rss = process['range_split_spectrum']
+    rdr2geo = process['rdr2geo']
 
     # Allocate Inputs
     inputs['safe_file_path'] = [safe]
@@ -404,6 +409,13 @@ def create_runconfig(burst, safe, orbit_path, dem_file, work_dir,
     rss['low_band_bandwidth'] = low_band
     rss['high_band_bandwidth'] = high_band
 
+    # rdr2geo
+    if lut:
+        rdr2geo['compute_latitude'] = True
+        rdr2geo['compute_longitude'] = True
+        rdr2geo['compute_height'] = True
+        rdr2geo['enabled'] = True
+
     date_str = burst.sensing_start.strftime("%Y%m%d")
     os.makedirs(f'{work_dir}/runconfigs', exist_ok=True)
     runconfig_path = f'{work_dir}/runconfigs/geo_runconfig_{date_str}_{burst.burst_id}.yaml'
@@ -419,7 +431,8 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
          flatten=True,
          is_split_spectrum=False,
          low_band=0.0,
-         high_band=0.0):
+         high_band=0.0,
+         lut=False):
     '''
     Create runconfigs and runfiles generating geocoded bursts for
     a static stack of Sentinel-1 A/B SAFE files.
@@ -512,7 +525,7 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
     # If user selects burst IDs to process, prune unnecessary bursts
     if burst_id is not None:
         burst_map = prune_dataframe(burst_map, 'burst_id', burst_id)
-        
+
     # Select only dates between start and end
     if start_date is not None:
         burst_map = burst_map[burst_map['date'] >= start_date]
@@ -541,7 +554,7 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
                                                       flatten,
                                                       is_split_spectrum,
                                                       low_band, high_band, pol,
-                                                      x_spac, y_spac)
+                                                      x_spac, y_spac, lut)
 
                     runfile_name = f'{run_dir}/run_{date_str}_{burst.burst_id}.sh'
                     with open(runfile_name, 'w') as rsh:
@@ -552,6 +565,8 @@ def main(slc_dir, dem_file, burst_id, start_date=None, end_date=None,
                     info.log(
                         f'Burst ID {burst.burst_id} or SAFE file date {date_str} '
                         f'not part of the stack to process')
+        lut = False      # calculate only once
+
     end_time = time.time()
     print('Elapsed time (min):', (end_time - start_time) / 60.0)
 
@@ -564,4 +579,4 @@ if __name__ == '__main__':
          args.end_date, args.exclude_dates, args.orbit_dir,
          args.work_dir, args.pol, args.x_spac, args.y_spac, args.epsg,
          args.flatten, args.is_split_spectrum,
-         args.low_band, args.high_band)
+         args.low_band, args.high_band, args.lut)
